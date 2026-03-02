@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Frontend Notifications</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    #notification-popup {
+      min-width: 300px;
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #333;
+      color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      z-index: 1000;
+    }
+
+    #notification-popup.show {
+      display: block;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    #notification-popup button {
+      background-color: #6040ff;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Frontend - Real-Time Notifications</h2>
+  <p>Listening for real-time messages from backend Socket.IO.</p>
+
+  <div id="notification-popup">
+    <p id="notification-message"></p>
+    <button id="dismiss-btn">Dismiss</button>
+  </div>
+
+  <!-- IMPORTANT: use the backend's Socket.IO client -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    function getUserId() {
+      // Example: ?user_id=12345
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("user_id");
+      if (id) return id;
+
+      console.error("❌ Missing user_id in URL");
+      document.body.innerHTML =
+        "<h3 style='color:red;'>Missing user_id in URL (e.g. ?user_id=123)</h3>";
+      throw new Error("Missing user_id");
+    }
+
+    function playNotificationSound() {
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = context.createOscillator();
+      const gainNode = context.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(context.destination);
+
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.3, context.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.5);
+
+      oscillator.start(context.currentTime);
+      oscillator.stop(context.currentTime + 0.5);
+    }
+
+    const userId = getUserId();
+
+    const socket = io({
+      withCredentials: true,
+    });
+
+    socket.on("connect", () => {
+      console.log("✅ Connected to backend Socket.IO:", socket.id);
+      socket.emit("register_user", userId);
+      console.log("📤 Registered user:", userId);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+    });
+
+    const popup = document.getElementById("notification-popup");
+    const messageBox = document.getElementById("notification-message");
+    const dismissButton = document.getElementById("dismiss-btn");
+
+    socket.on(`notification_${userId}`, (data) => {
+      console.log("📩 Notification received:", data);
+      playNotificationSound();
+      showNotificationPrompt(data.message);
+    });
+
+    function showNotificationPrompt(message) {
+      messageBox.textContent = message;
+      popup.classList.add("show");
+      setTimeout(() => popup.classList.remove("show"), 8000);
+    }
+
+    dismissButton.addEventListener("click", () => {
+      popup.classList.remove("show");
+    });
+  </script>
+</body>
+
+</html>
